@@ -1,0 +1,43 @@
+#!/usr/bin/env groovy
+
+node('sumaform-cucumber') {
+    properties([
+        buildDiscarder(logRotator(numToKeepStr: '15', artifactNumToKeepStr: '5')),
+        disableConcurrentBuilds(),
+        parameters([
+            string(name: 'cucumber_gitrepo', defaultValue: 'https://github.com/SUSE/spacewalk.git', description: 'Testsuite Git Repository'),
+            string(name: 'cucumber_ref', defaultValue: 'Manager-5.1', description: 'Testsuite Git reference (branch, tag...)'),
+            string(name: 'tf_file', defaultValue: 'susemanager-ci/terracumber_config/tf_files/MLM-migration-50-to-51.tf', description: 'Path to the tf file to be used'),
+            string(name: 'sumaform_gitrepo', defaultValue: 'https://github.com/uyuni-project/sumaform.git', description: 'Sumaform Git Repository'),
+            string(name: 'sumaform_ref', defaultValue: 'master', description: 'Sumaform Git reference (branch, tag...)'),
+            choice(name: 'sumaform_backend', choices: ['libvirt'], description: 'Sumaform backend to be used'),
+            choice(name: 'bin_path', choices: ['/usr/bin/tofu', '/usr/bin/terraform'], description: 'Binary path'),
+            choice(name: 'bin_plugins_path', choices: ['/usr/bin'], description: 'Plugins path'),
+            string(name: 'deploy_parallelism', defaultValue: '', description: 'Advanced: Define the number of parallel resource operations'),
+            string(name: 'terracumber_gitrepo', defaultValue: 'https://github.com/uyuni-project/terracumber.git', description: 'Terracumber Git Repository'),
+            string(name: 'terracumber_ref', defaultValue: 'master', description: 'Terracumber Git ref (branch, tag...)'),
+            choice(name: 'host_os', choices: ['sles', 'micro'], description: 'Host OS (sles=SLES 15 SP6→SP7, micro=SL Micro 5.5→6.1)'),
+            string(name: 'prerelease_repo_url', defaultValue: '', description: 'Optional: Pre-release repository URL for MLM 5.1 mgr tools'),
+            string(name: 'registry_host', defaultValue: '', description: 'Optional: Custom container registry (e.g., registry.suse.de)'),
+            booleanParam(name: 'terraform_init', defaultValue: true, description: 'Call terraform init'),
+            booleanParam(name: 'terraform_taint', defaultValue: true, description: 'Call terraform taint'),
+            booleanParam(name: 'use_previous_terraform_state', defaultValue: false, description: 'Use previous Terraform state'),
+            booleanParam(name: 'must_deploy', defaultValue: true, description: 'Deploy infrastructure'),
+            booleanParam(name: 'must_run_migration_tests', defaultValue: true, description: 'Run migration tests')
+        ])
+    ])
+
+    stage('Checkout pipeline') {
+        checkout scm
+    }
+
+    timeout(activity: false, time: 10, unit: 'HOURS') {
+        // Set environment variables for scripts
+        env.REGISTRY_HOST = params.registry_host
+        env.SCC_USER = credentials('scc-credentials').username
+        env.SCC_PASSWORD = credentials('scc-credentials').password
+
+        def pipeline = load "jenkins_pipelines/environments/common/pipeline-migration.groovy"
+        pipeline.run(params)
+    }
+}
